@@ -1,94 +1,94 @@
+const cors = require('cors');
 const express = require('express');
 const bodyParser = require('body-parser');
-const { WebSocket, WebSocketServer } = require('ws');
+
 const { parse } = require('url');
+const { WebSocket, WebSocketServer } = require('ws');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = require('http').createServer(app);
 const port = process.env.PORT || 4399;
-const wss = new WebSocketServer({ noServer: true });
-const wss1 = new WebSocketServer({ noServer: true });
-const ws = new WebSocket('ws://127.0.0.1:4399/ws');
+const wss = new WebSocketServer({ server: server });
 
-app.use(bodyParser.json())
+
+app.use(cors());
+app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
-  console.log(server);
 });
 
 app.get("/ws", (req, res) => {
   res.status(200).send("Websocket API");
 });
 
-app.post("/ws", (req, res) => {
+app.post("/msg/:id", (req, res) => {
+  const ws = new WebSocket(`ws://127.0.0.1:4399/msg/channel@${req.params.id}`).send('hi');
+  // ws.send(JSON.stringify(req.body));
+  // ws.onerror = e => res.send(e);
+  // ws.close();
+
   res.status(200).send(JSON.stringify(req.body));
-  ws.send(JSON.stringify(req.body));
-  ws.onerror = e => {
-    res.send(e);
-  }
+
+  const updateIndex = req.params.id;
+  res.send(updateIndex);
 });
 
-wss.on('connection', ws => {
-  ws.on('error', console.error);
+var temp = {};
 
-  console.log('User Connected to ws channel 0');
+wss.on('connection', (ws, req) => {
+  const location = parse(req.url, true);
 
-  ws.on('message', data => {
-    console.log(`channel 0 data : ${data}`);
+  roomCH = location.pathname.split('@')[1];
 
-    wss.clients.forEach(client => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(data.toString());
-      }
-    });
-  });
+  console.log('[ws-server] User is connect to CH ' + roomCH);
 
-  ws.on('close', () => {
-    console.log('User disconnect ws channel 0');
-  });
-});
+  const clientId = uuidv4();
+  ws.clientId = clientId;
+  ws.send(`Welcome ${ws.clientID} to server`)
 
-wss1.on('connection', ws => {
-  ws.on('error', console.error);
-
-  console.log('User Connected on ws channel 1');
-
-  ws.on('message', data => {
-    console.log(`channel 1 data : ${data}`);
-
-    wss1.clients.forEach(client => {
-      if (client !== ws && client.readyState === WebSocket.OPE) {
-        client.send(data.toString());
-      }
-    });
-  });
-
-  ws.on('close', () => {
-    console.log('User disconnect ws channel 1');
-  });
-});
-
-server.on('upgrade', (req, socket, head) => {
-  const { pathname } = parse(req.url);
-  if (pathname === '/ws') {
-    wss.handleUpgrade(req, socket, head, ws => {
-      wss.emit('connection', ws, req);
-    });
-  } else if (pathname === '/ws/1') {
-    wss1.handleUpgrade(req, socket, head, ws => {
-      wss1.emit('connection', ws, req);
-    });
+  if (roomCH in temp) {
+    temp[roomCH].push(ws);
   } else {
-    socket.destroy();
+    temp[roomCH] = [ws];
   }
+
+  console.log(temp);
+
+  ws.on('message', (data, isBinary) => {
+    console.log(`[ws-server CH ${roomCH}] : ${data}`);
+
+    temp[roomCH].forEach(function each(client) {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(data, { binary: isBinary });
+      }
+    });
+  });
+
+  ws.on('close', () => {
+    for (const groupId in temp) {
+      if (temp.hasOwnProperty(groupId)) {
+        const group = temp[groupId];
+        const index = group.indexOf(ws);
+        if (index !== -1) {
+          group.splice(index, 1);
+          console.log('[ws server] User is disconnected');
+        }
+      }
+    }
+  });
+});
+
+wss.on('error', (e) => {
+  console.log("[ws server] Error Message " + e);
 });
 
 server.on('error', (e) => {
-  console.log("[Server] Error Message " + e);
+  console.log("[server] Error Message " + e);
 });
 
 server.listen(port, () => {
-  console.log("[Server] Listening WebSocket and API on port " + port);
+  console.log("[server] Listening ws-api on port " + port);
 });
