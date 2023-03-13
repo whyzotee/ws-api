@@ -11,7 +11,6 @@ const server = require('http').createServer(app);
 const port = process.env.PORT || 4399;
 const wss = new WebSocketServer({ server: server });
 
-
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -25,29 +24,34 @@ app.get("/ws", (req, res) => {
 });
 
 app.post("/msg/:id", (req, res) => {
-  const ws = new WebSocket(`ws://127.0.0.1:4399/msg/channel@${req.params.id}`).send('hi');
-  // ws.send(JSON.stringify(req.body));
-  // ws.onerror = e => res.send(e);
-  // ws.close();
+  try {
+    const ws = new WebSocket(`ws://127.0.0.1:4399/msg/channel@${req.params.id}`);
+    ws.on('open', () => {
+      ws.send(JSON.stringify(req.body));
+      ws.close();
+      res.status(200).send(`[api-server] : send data to ws complete! \ndata : ${JSON.stringify(req.body)}`)
+    });
 
-  res.status(200).send(JSON.stringify(req.body));
-
-  const updateIndex = req.params.id;
-  res.send(updateIndex);
+    ws.on('error', (e) => {
+      console.error(e);
+      res.status(500).send('[api-server] : Error sending message to WebSocket server')
+    });
+  } catch (e) {
+    console.log(` ${e}`);
+    res.status(500).send('[api-server] : Error opening WebSocket connection');
+  }
 });
 
 var temp = {};
 
 wss.on('connection', (ws, req) => {
-  const location = parse(req.url, true);
-
-  roomCH = location.pathname.split('@')[1];
+  let roomCH = parse(req.url, true).pathname.split('@')[1];
 
   console.log('[ws-server] User is connect to CH ' + roomCH);
 
   const clientId = uuidv4();
   ws.clientId = clientId;
-  ws.send(`Welcome ${ws.clientID} to server`)
+  ws.send(`Welcome ${clientId} to server`)
 
   if (roomCH in temp) {
     temp[roomCH].push(ws);
