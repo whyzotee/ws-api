@@ -11,13 +11,17 @@ const server = require('http').createServer(app);
 const port = process.env.PORT || 4399;
 const wss = new WebSocketServer({ server: server });
 
-function randomChoice(arr) {
-  return arr[Math.floor(arr.length * Math.random())];
-}
-
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
+
+var tempData = {};
+var all_key = ['L', 'R'];
+var full_room = [];
+
+
+// ********************************* http API ********************************* //
+
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -33,57 +37,32 @@ app.get("/ws", (req, res) => {
 });
 
 app.get("/msg/:id", (req, res) => {
-  try {
-    const wss = new WebSocket(`ws://127.0.0.1:4399/msg/channel@${req.params.id}`);
-    let data;
-
-    wss.on('message', ws => {
-      data = JSON.parse(ws);
-
-      if (data["status"]) {
-        res.status(200).send(`[api-server] : ok`);
-        wss.close();
-      } else {
-        res.status(500).send(`[api-server] : full`);
-        wss.close();
+  if (!(req.params.id in tempData)) {
+    console.log(1);
+    res.status(200).send('ว่าง');
+  } else {
+    full_room = []
+    for (let i in all_key) {
+      if (tempData[req.params.id][all_key[i]].length != 0) {
+        full_room.push(all_key[i])
       }
-    });
-
-    wss.on('error', (e) => {
-      console.error(e);
-      res.status(500).send('[api-server] : Error connection WebSocket server')
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).send('[api-server] : Error opening WebSocket connection');
+    }
+    if (full_room.length == all_key.length) {
+      console.log(2);
+      res.status(500).send('ไม่ว่าง');
+    } else {
+      console.log(3);
+      res.status(200).send('ว่าง');
+    }
   }
 });
 
-app.post("/msg/:id", (req, res) => {
-  try {
-    const ws = new WebSocket(`ws://127.0.0.1:4399/msg/channel@${req.params.id}`);
-    ws.on('open', () => {
-      ws.send(JSON.stringify(req.body));
-      res.status(200).send(`[api-server] : send message complete`);
-    });
 
-    ws.on('error', (e) => {
-      console.error(e);
-      res.status(500).send('[api-server] : Error sending message to WebSocket server')
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).send('[api-server] : Error opening WebSocket connection');
-  }
-});
+// ********************************* Websocket API ********************************* //
 
-var tempData = {};
-var all_key = ['L', 'R'];
-var full_room = [];
 
 wss.on('connection', (ws, req) => {
   let roomCH = parse(req.url, true).pathname.split('@')[1];
-
   console.log(`[ws-server] User is connect to CH ${roomCH}`);
 
   if (!(roomCH in tempData)) {
@@ -102,18 +81,19 @@ wss.on('connection', (ws, req) => {
 
   empty_room = all_key.filter(x => !full_room.includes(x));
   target = empty_room[Math.floor(empty_room.length * Math.random())]
+  console.log(tempData[roomCH][target]);
 
   if (tempData[roomCH][target] == undefined) {
-    return ws.send(JSON.stringify({ "status": false }));
+    ws.close();
+  } else {
+    tempData[roomCH][target].push(ws);
   }
-
-  tempData[roomCH][target].push(ws);
 
   console.log(tempData);
 
   const clientId = uuidv4();
   ws.clientId = clientId;
-  ws.send(JSON.stringify({ "status": true, "id": clientId }));
+  ws.send(JSON.stringify({ "id": clientId }));
 
   ws.on('message', (data, isBinary) => {
     console.log(`[ws ch ${roomCH}] : ${data}`);
@@ -131,19 +111,16 @@ wss.on('connection', (ws, req) => {
     for (let i in all_key) {
       const index = tempData[roomCH][all_key[i]].indexOf(ws);
       if (index !== -1) {
-        // tempData[roomCH][all_key[i]].forEach(client => {
-        //   client.send(`bye bye`);
-        // })
         tempData[roomCH][all_key[i]].splice(index, 1);
-        console.log(tempData);
+        console.log('[ws-server] User is disconnected');
       }
     }
   });
 });
 
-wss.on('error', e => {
-  console.log(`[ws server] Error Message ${e}`);
-});
+
+// ********************************* Server log ********************************* //
+
 
 server.on('error', e => {
   console.log(`[server] Error Message ${e}`);
