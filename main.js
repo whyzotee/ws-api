@@ -17,7 +17,6 @@ app.use(bodyParser.urlencoded({ extended: false }));
 
 var tempData = {};
 var all_key = ['L', 'R'];
-var full_room = [];
 
 
 // ********************************* http API ********************************* //
@@ -37,13 +36,14 @@ app.get("/ws", (req, res) => {
 });
 
 app.get("/msg/:id", (req, res) => {
-  if (!(req.params.id in tempData)) {
+  let room_id = req.params.id;
+  if (!(room_id in tempData)) {
     console.log(1);
     res.status(200).send('ว่าง');
   } else {
-    full_room = []
+    let full_room = [];
     for (let i in all_key) {
-      if (tempData[req.params.id][all_key[i]].length != 0) {
+      if (tempData[room_id][all_key[i]].length != 0) {
         full_room.push(all_key[i])
       }
     }
@@ -73,15 +73,15 @@ wss.on('connection', (ws, req) => {
     }
   }
 
+  let full_room = [];
   for (let i in all_key) {
     if (tempData[roomCH][all_key[i]].length != 0) {
       full_room.push(all_key[i])
     }
   }
 
-  empty_room = all_key.filter(x => !full_room.includes(x));
-  target = empty_room[Math.floor(empty_room.length * Math.random())]
-  console.log(tempData[roomCH][target]);
+  let empty_room = all_key.filter(x => !full_room.includes(x));
+  let target = empty_room[Math.floor(empty_room.length * Math.random())]
 
   if (tempData[roomCH][target] == undefined) {
     ws.close();
