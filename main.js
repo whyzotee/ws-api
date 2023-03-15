@@ -16,6 +16,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 var tempData = {};
+var tempCheck = {};
 var all_key = ['L', 'R'];
 
 
@@ -67,9 +68,11 @@ wss.on('connection', (ws, req) => {
 
   if (!(roomCH in tempData)) {
     tempData[roomCH] = {};
+    tempCheck[roomCH] = {};
 
     for (let i in all_key) {
       tempData[roomCH][all_key[i]] = [];
+      tempCheck[roomCH][all_key[i]] = false;
     }
   }
 
@@ -87,13 +90,14 @@ wss.on('connection', (ws, req) => {
     ws.close();
   } else {
     tempData[roomCH][target].push(ws);
+    tempCheck[roomCH][target] = true;
+
+    const clientId = uuidv4();
+    ws.clientId = clientId;
+    ws.send(JSON.stringify({ "id": clientId, "pos": tempCheck[roomCH] }));
   }
 
   console.log(tempData);
-
-  const clientId = uuidv4();
-  ws.clientId = clientId;
-  ws.send(JSON.stringify({ "id": clientId }));
 
   ws.on('message', (data, isBinary) => {
     console.log(`[ws ch ${roomCH}] : ${data}`);
@@ -112,6 +116,7 @@ wss.on('connection', (ws, req) => {
       const index = tempData[roomCH][all_key[i]].indexOf(ws);
       if (index !== -1) {
         tempData[roomCH][all_key[i]].splice(index, 1);
+        tempCheck[roomCH][all_key[i]] = false;
         console.log('[ws-server] User is disconnected');
       }
     }
