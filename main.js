@@ -58,7 +58,7 @@ app.get("/msg/:id", (req, res) => {
 app.get("/msg/new/:id", (req, res) => {
   let room_id = req.params.id;
   if (!(room_id in tempData)) {
-    if (get_one_person_room().length > 1) {
+    if (get_one_person_room().length > 0) {
       res.status(200).send(get_one_person_room());
     }
     else {
@@ -74,30 +74,35 @@ app.get("/msg/new/:id", (req, res) => {
 
 
 wss.on('connection', (ws, req) => {
-  /*          URL stucture
-  ws://domain:port/msg/channel_new!name=Z0TEExt@A0B1C2D
+  /*           URL stucture
+  ws://domain:port/msg/ch@A0B1C2D!name=Z0TEExt
 
-  _create !name=      @room    
-      |     |           |
-  _create!name=Z0TEExt@A0B1C2D  
+   ch@"room" !name="Username"
+      |            |
+  /ch@A0B1C2D!name=Z0TEExt
     
   */
 
-  let roomCH = parse(req.url, true).pathname.split('@')[1].toString();
-  let createRoom = parse(req.url, true).pathname.split('create')[1];
-  let userName = parse(req.url, true).pathname.split('name=')[1].split('@')[0];
+  let roomCH = parse(req.url, true).pathname.split('@')[1];
+  let userName = parse(req.url, true).pathname.split('!name=')[1];
+
+  if (roomCH != null && userName != null) {
+    roomCH = roomCH.split('!')[0].toString();
+    userName = userName.split('@')[0];
+  }
+
+  if (roomCH == undefined || userName == undefined) {
+    return ws.close();
+  }
+
 
   if (!(roomCH in tempData)) {
-    if (createRoom != undefined) {
-      tempData[roomCH] = {};
-      tempCheck[roomCH] = {};
+    tempData[roomCH] = {};
+    tempCheck[roomCH] = {};
 
-      for (let i in all_key) {
-        tempData[roomCH][all_key[i]] = [];
-        tempCheck[roomCH][all_key[i]] = false;
-      }
-    } else {
-      return ws.close();
+    for (let i in all_key) {
+      tempData[roomCH][all_key[i]] = [];
+      tempCheck[roomCH][all_key[i]] = false;
     }
   }
 
@@ -123,9 +128,8 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({ "id": clientId, "name": userName, "pos": tempCheck[roomCH] }));
 
     console.log(`[ws-server] ${userName} is connect to CH ${roomCH}`);
+
   }
-
-
 
   ws.on('message', (data, isBinary) => {
     console.log(`[ws ch ${roomCH}] : ${data}`);
@@ -145,24 +149,24 @@ wss.on('connection', (ws, req) => {
     for (let i in all_key) {
       const index = tempData[roomCH][all_key[i]].indexOf(ws);
       if (index !== -1) {
-        tempData[roomCH][all_key[i]].splice(index, 1);
         tempCheck[roomCH][all_key[i]] = false;
+        tempData[roomCH][all_key[i]].splice(index, 1);
         console.log('[ws-server] User is disconnected');
       }
+    }
 
-      tempData[roomCH][all_key[i]].forEach(function each(client) {
+    for (let j in all_key) {
+      tempData[roomCH][all_key[j]].forEach(function each(client) {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ "leave": ws.clientName, 'uuid': ws.clientId }));
+          client.send(JSON.stringify({ "leave": ws.clientName, 'uuid': ws.clientId, "pos": tempCheck[roomCH] }));
           userInroom++;
         }
       });
     }
 
     if (userInroom == 0) {
-      delete tempData[roomCH]
+      delete tempData[roomCH];
     }
-
-    console.log(tempData);
   });
 });
 
