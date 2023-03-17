@@ -82,6 +82,13 @@ wss.on('connection', (ws, req) => {
   /ch@A0B1C2D!name=Z0TEExt
     
   */
+  const origin = req.headers.origin;
+  console.log('WebSocket connection from origin:', origin);
+
+  // if (!origin == 'http://localhost:64640') {
+  //   return ws.close();
+  // }
+
 
   let roomCH = parse(req.url, true).pathname.split('@')[1];
   let userName = parse(req.url, true).pathname.split('!name=')[1];
@@ -128,7 +135,6 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({ "id": clientId, "name": userName, "pos": tempCheck[roomCH] }));
 
     console.log(`[ws-server] ${userName} is connect to CH ${roomCH}`);
-
   }
 
   ws.on('message', (data, isBinary) => {
@@ -174,15 +180,17 @@ function get_one_person_room() {
   let result = [];
 
   for (const key in tempData) {
-    let count = 0
+    let count = 0;
+    let maxRoom = 0;
     for (i in all_key) {
+      maxRoom++;
       tempData[key][all_key[i]].forEach(function each(client) {
         if (client.readyState === WebSocket.OPEN) {
           count++;
         }
       });
     }
-    if (count >= 1) {
+    if (count <= maxRoom - 1) {
       result.push(key);
     }
   }
