@@ -109,7 +109,7 @@ wss.on('connection', (ws, req) => {
 
     for (let i in all_key) {
       tempData[roomCH][all_key[i]] = [];
-      tempCheck[roomCH][all_key[i]] = false;
+      tempCheck[roomCH][all_key[i]] = null;
     }
   }
 
@@ -127,7 +127,7 @@ wss.on('connection', (ws, req) => {
     return ws.close();
   } else {
     tempData[roomCH][target].push(ws);
-    tempCheck[roomCH][target] = true;
+    tempCheck[roomCH][target] = userName;
 
     const clientId = uuidv4();
     ws.clientId = clientId;
@@ -155,8 +155,8 @@ wss.on('connection', (ws, req) => {
     for (let i in all_key) {
       const index = tempData[roomCH][all_key[i]].indexOf(ws);
       if (index !== -1) {
-        tempCheck[roomCH][all_key[i]] = false;
         tempData[roomCH][all_key[i]].splice(index, 1);
+        tempCheck[roomCH][all_key[i]] = null;
         console.log('[ws-server] User is disconnected');
       }
     }
